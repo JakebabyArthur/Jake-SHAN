@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Money Converter</title>
+  <style>
+    :root {
+      --primary: #4A90E2;
+      --secondary: #ffffff;
+      --bg: #f5f7fa;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --border-radius: 8px;
+      --shadow: rgba(0, 0, 0, 0.1);
+      --max-width: 800px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      width: 100%; max-width: var(--max-width);
+    }
+    nav {
+      display: flex;
+      background: var(--secondary);
+      border-radius: var(--border-radius);
+      box-shadow: 0 2px 8px var(--shadow);
+      overflow: hidden;
+    }
+    nav button {
+      flex: 1;
+      padding: 14px 0;
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.3s;
+    }
+    nav button.active {
+      background: var(--primary);
+      color: var(--secondary);
+    }
+    .page { display: none; margin-top: 20px; }
+    .page.active { display: block; }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: 0 2px 8px var(--shadow);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h2 { margin-top: 0; }
+    .currency-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .currency-row select,
+    .currency-row input {
+      padding: 10px;
+      margin-right: 10px;
+      border: 1px solid #ccc;
+      border-radius: var(--border-radius);
+      font-size: 1rem;
+      flex: 1;
+    }
+    #addCurrencyBtn,
+    #showTrendBtn {
+      padding: 12px 20px;
+      background: var(--primary);
+      color: var(--secondary);
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.3s;
+    }
+    #addCurrencyBtn:hover,
+    #showTrendBtn:hover {
+      background: #357ABD;
+    }
+    #trendControls select {
+      width: 100%;
+      height: 150px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: var(--border-radius);
+      font-size: 1rem;
+    }
+    @media (max-width: 600px) {
+      .currency-row { flex-direction: column; align-items: stretch; }
+      .currency-row select, .currency-row input { margin-right: 0; margin-bottom: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <button id="converterTab" class="active">Converter</button>
+      <button id="trendTab">Trend</button>
+    </nav>
+
+    <div id="converterPage" class="page active">
+      <div class="card">
+        <h2>Money Converter</h2>
+        <div id="currencyContainer"></div>
+        <button id="addCurrencyBtn">Add Currency</button>
+      </div>
+    </div>
+
+    <div id="trendPage" class="page">
+      <div class="card">
+        <h2>Currency Trend</h2>
+        <div id="trendControls">
+          <label>Select up to 5 currencies:</label><br>
+          <select id="trendSelect" multiple></select><br>
+          <button id="showTrendBtn">Show Trend</button>
+        </div>
+        <canvas id="trendChart" width="700" height="400"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Most-used currencies first
+    const popular = ['USD','EUR','CNY','JPY','GBP','AUD','CAD','CHF','SGD','NZD'];
+    // Full ISO list
+    const all = [
+      "USD","EUR","CNY","JPY","GBP","AUD","CAD","CHF","SGD","NZD",
+      "AED","AFN","ALL","AMD","ANG","AOA","ARS","AWG","AZN","BAM",
+      "BBD","BDT","BGN","BHD","BIF","BMD","BND","BOB","BRL","BSD",
+      "BTN","BWP","BYN","BZD","CDF","CLP","COP","CRC","CUP","CVE",
+      "CZK","DJF","DKK","DOP","DZD","EGP","ERN","ETB","FJD","FKP",
+      "GEL","GGP","GHS","GIP","GMD","GNF","GTQ","GYD","HKD","HNL",
+      "HRK","HTG","HUF","IDR","ILS","IMP","INR","IQD","IRR","ISK",
+      "JEP","JMD","JOD","KES","KGS","KHR","KMF","KPW","KRW","KWD",
+      "KYD","KZT","LAK","LBP","LKR","LRD","LSL","LYD","MAD","MDL",
+      "MGA","MKD","MMK","MNT","MOP","MRU","MUR","MVR","MWK","MXN",
+      "MYR","MZN","NAD","NGN","NIO","NOK","NPR","OMR","PAB","PEN",
+      "PGK","PHP","PKR","PLN","PYG","QAR","RON","RSD","RUB","RWF",
+      "SAR","SBD","SCR","SDG","SEK","SHP","SLL","SOS","SRD","SSP",
+      "STN","SVC","SYP","SZL","THB","TJS","TMT","TND","TOP","TTD",
+      "TVD","TWD","TZS","UAH","UGX","UYU","UZS","VES","VND","VUV",
+      "WST","XAF","XCD","XDR","XOF","XPF","YER","ZAR","ZMW","ZWL"
+    ];
+    const currencyCodes = [...popular, ...all.filter(c=>!popular.includes(c))];
+
+    // Exchange rates assumed per 1 USD
+    const rates = {
+      USD:1.0000, EUR:0.8500, CNY:6.5000, JPY:110.0000, GBP:0.7500,
+      AUD:1.3000, CAD:1.2500, CHF:0.9200, SGD:1.3500, NZD:1.4000,
+      AED:3.6725, AFN:77.2000, ALL:104.5000, AMD:480.0000, ANG:1.7900,
+      AOA:832.5000, ARS:350.0000, AWG:1.8000, AZN:1.7000, BAM:1.7500,
+      BBD:2.0200, BDT:107.0000, BGN:1.7500, BHD:0.3770, BIF:2065.0000,
+      BMD:1.0000, BND:1.3500, BOB:6.9000, BRL:5.2000, BSD:1.0000,
+      BTN:82.5000, BWP:13.5000, BYN:2.5500, BZD:2.0200, CDF:2000.0000,
+      CLP:850.0000, COP:3800.0000, CRC:540.0000, CUP:24.0000, CVE:110.0000,
+      CZK:22.0000, DJF:177.7200, DKK:6.7000, DOP:56.0000, DZD:140.0000,
+      EGP:30.9000, ERN:15.0000, ETB:54.0000, FJD:2.2000, FKP:0.7500,
+      GEL:2.6000, GHS:12.0000, GIP:0.7500, GMD:55.0000, GNF:8600.0000,
+      GTQ:7.8000, GYD:209.0000, HKD:7.8000, HNL:24.5000, HRK:6.8000,
+      HTG:155.0000, HUF:400.0000, IDR:15000.0000, ILS:3.6000, INR:82.0000,
+      IQD:1460.0000, IRR:42000.0000, ISK:140.0000, JMD:154.0000, JOD:0.7090,
+      KES:128.0000, KGS:84.0000, KHR:4100.0000, KMF:450.0000, KPW:900.0000,
+      KRW:1150.0000, KWD:0.3050, KYD:0.8300, KZT:470.0000, LAK:17200.0000,
+      LBP:1500.0000, LKR:320.0000, LRD:200.0000, LSL:18.5000, LYD:4.8000,
+      MAD:9.5000, MDL:18.0000, MGA:4150.0000, MKD:55.0000, MMK:2100.0000,
+      MNT:2850.0000, MOP:8.0000, MRU:37.0000, MUR:45.0000,
+      MVR:15.4000, MWK:1050.0000, MXN:18.0000, MYR:4.4000, MZN:63.0000,
+      NAD:18.5000, NGN:770.0000, NIO:36.0000, NOK:9.0000, NPR:120.0000,
+      OMR:0.3850, PAB:1.0000, PEN:3.9000, PGK:3.5600, PHP:56.0000,
+      PKR:285.0000, PLN:3.9000, PYG:7150.0000, QAR:3.6400, RON:4.2000,
+      RSD:105.0000, RUB:90.0000, RWF:1040.0000, SAR:3.7500, SBD:8.0000,
+      SCR:13.0000, SDG:600.0000, SHP:0.7500, SLL:12500.0000, SOS:580.0000,
+      SRD:21.0000, SSP:600.0000, STN:22.0000, SVC:8.8000, SYP:2512.0000,
+      SZL:18.5000, THB:35.0000, TJS:11.3000, TMT:3.5000, TND:3.1000,
+      TOP:2.5000, TTD:6.8000, TTD:6.8000, TVD:2.3000, TWD:30.0000,
+      TZS:2340.0000, UAH:36.0000, UGX:3800.0000, UYU:38.0000, UZS:11400.0000,
+      VES:25.0000, VND:24000.0000, VUV:115.0000, WST:2.6000, XAF:600.0000,
+      XCD:2.7000, XDR:0.7200, XOF:600.0000, XPF:100.0000, YER:250.0000,
+      ZAR:18.5000, ZMW:23.0000, ZWL:322.0000
+    };
+
+    // Tab switching
+    document.getElementById('converterTab').onclick = () => switchTab('converter');
+    document.getElementById('trendTab').onclick = () => switchTab('trend');
+    function switchTab(key) {
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById(key + 'Tab').classList.add('active');
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(key === 'converter' ? 'converterPage' : 'trendPage')
+        .classList.add('active');
+    }
+
+    // Converter
+    const max = 5; const container = document.getElementById('currencyContainer');
+    document.getElementById('addCurrencyBtn').onclick = addRow;
+    function addRow() {
+      if (container.children.length >= max) return;
+      const row = document.createElement('div'); row.className='currency-row';
+      const sel = document.createElement('select');
+      currencyCodes.forEach(c => sel.add(new Option(c, c)));
+      sel.value = container.children.length === 0 ? 'USD' : currencyCodes[container.children.length];
+      const inp = document.createElement('input'); inp.type='number'; inp.placeholder='Amount'; inp.value = container.children.length === 0 ? 1 : 0;
+      row.append(sel, inp); container.append(row);
+
+      sel.onchange = () => update(row);
+      inp.oninput = () => update(row);
+
+      if (container.children.length === max) document.getElementById('addCurrencyBtn').disabled = true;
+      update(row);
+    }
+    function update(triggerRow) {
+      const rows = Array.from(container.children);
+      const baseIndex = rows.indexOf(triggerRow);
+      const baseSel = rows[baseIndex].querySelector('select');
+      const baseInp = rows[baseIndex].querySelector('input');
+      const baseCode = baseSel.value;
+      const baseAmt = parseFloat(baseInp.value) || 0;
+      rows.forEach((r,i) => {
+        if (i === baseIndex) return;
+        const sel = r.querySelector('select'); const inp = r.querySelector('input');
+        inp.value = ((rates[sel.value] || 1) / (rates[baseCode] || 1) * baseAmt).toFixed(4);
+      });
+    }
+    addRow();
+
+    // Trend
+    const trendSel = document.getElementById('trendSelect');
+    currencyCodes.forEach(c => trendSel.add(new Option(c,c)));
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const chart = new Chart(ctx, {type:'line', data:{labels:[], datasets:[]}, options:{responsive:true}});
+    document.getElementById('showTrendBtn').onclick = () => {
+      const sel = Array.from(trendSel.selectedOptions).map(o => o.value).slice(0,max);
+      const dates = Array.from({length:30}, (_,i) => {
+        const d = new Date(); d.setDate(d.getDate() - 29 + i);
+        return d.toISOString().slice(0,10);
+      });
+      chart.data.labels = dates;
+      chart.data.datasets = sel.map(c => ({ label: c, data: dates.map(() => ((rates[c]||1)*(1+Math.random()*0.05)).toFixed(4)), borderWidth:2, fill:false }));
+      chart.update();
+    };
+  </script>
+</body>
+</html>
+
